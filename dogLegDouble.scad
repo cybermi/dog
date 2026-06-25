@@ -17,12 +17,23 @@
 // 形成 dogleg（两段U）。第二个 U 经 rotate([180,0,0]) 翻转，腿朝 +Z，与主体背靠背，
 // 由中央凸点(boss)连接；主U的顶部小凸点(end_tip_bump)恰好探入第二个U的中心孔，充当对焦销。
 //
+// 【侧壁】两个 U 各有两条侧壁(腿)，共 4 条，厚度均可独立配置；某条设为 0 即“该侧壁不存在”
+//        （连同其腿面孔、内倒角一并省略），顶板在该侧收到内侧间距(gap)边界，形成单壁/无壁形态。
+//
 // 单位：mm。所有尺寸均为浮点，支持小数点后两位（如 3.25）；Customizer 中以 0.01 步进。
 
-/* [壁厚 —— 可分别设置] */
-// 两侧(腿)壁厚 (mm)
-side_wall = 3.00;    // [0.1:0.01:20]
-// 末端(顶板)壁厚 (mm)
+/* [侧壁厚度 —— 4 条U型侧壁独立配置；0 = 该侧壁不存在] */
+// 主U +Y 侧壁厚 (mm)；0=无此壁
+main_wall_right   = 3.00;  // [0:0.01:20]
+// 主U −Y 侧壁厚 (mm)；0=无此壁
+main_wall_left    = 3.00;  // [0:0.01:20]
+// 第二U +Y(本体局部) 侧壁厚 (mm)；0=无此壁（经翻转后该壁位于世界 −Y 侧）
+second_wall_right = 3.00;  // [0:0.01:20]
+// 第二U −Y(本体局部) 侧壁厚 (mm)；0=无此壁（经翻转后该壁位于世界 +Y 侧）
+second_wall_left  = 3.00;  // [0:0.01:20]
+
+/* [顶板厚度] */
+// 末端(顶板)壁厚 (mm)，两个 U 通用
 end_wall  = 3.00;    // [0.1:0.01:20]
 
 /* [两侧孔 —— 腿面孔组 (legs)] */
@@ -76,7 +87,7 @@ gap           = 18.00; // [0:0.01:200]
 /* [末端倒角 —— 两个轴向可分别设置] */
 // X 向倒角：宽度(bracket_width)两端边(X=±bw/2, 沿 Y)的 45° 倒角尺寸（0=关闭） (mm)
 end_chamfer_x = 3.00;  // [0:0.01:20]
-// Y 向倒角：深度(D)两端边(Y=±D/2, 沿 X)的 45° 倒角尺寸（0=关闭） (mm)
+// Y 向倒角：深度两端边(沿 X)的 45° 倒角尺寸（0=关闭） (mm)
 end_chamfer_y = 3.00;  // [0:0.01:20]
 
 /* [内侧倒角] */
@@ -130,7 +141,6 @@ eps = 0.05;
 // ---- 派生量 ----
 r_round = bracket_width / 2;            // 圆头半径
 zc_leg  = -(leg_length - r_round);      // 腿上孔组中心 Z（即圆头圆心）
-D       = gap + 2 * side_wall;          // 顶板深度(Y 方向)，两腿外缘对齐
 
 // ---- 孔组：2D 圆（中心在原点），全部参数化以便两侧/末端独立配置 ----
 //   bcd=螺栓圆直径, n=孔数, a0=起始角, dc=中心孔径, da=轴向孔径, dd=对角孔径,
@@ -150,21 +160,27 @@ module pattern_circles(bcd, n, a0, dc, da, dd, do_center, do_diag) {
 }
 
 // ---- 实体 ----
-// 单条腿：直段(方块) + 圆头(沿 Y 的圆柱)，腿厚 = side_wall 沿 Y。
-// ys = 腿在 Y 方向的起始坐标。
-module leg(ys) {
-    // 直段：自顶板(Z=0)向下到圆心 zc_leg
-    translate([-bracket_width/2, ys, zc_leg])
-        cube([bracket_width, side_wall, leg_length - r_round]);
-    // 圆头：轴沿 +Y 的圆柱
-    translate([0, ys, zc_leg])
-        rotate([-90, 0, 0])
-            cylinder(h = side_wall, r = r_round);
+// 单条腿：直段(方块) + 圆头(沿 Y 的圆柱)，腿厚 = w 沿 Y。w=0 时不生成（该侧壁不存在）。
+// ys = 腿在 Y 方向的起始(最小)坐标。
+module leg(ys, w) {
+    if (w > 0) {
+        // 直段：自顶板(Z=0)向下到圆心 zc_leg
+        translate([-bracket_width/2, ys, zc_leg])
+            cube([bracket_width, w, leg_length - r_round]);
+        // 圆头：轴沿 +Y 的圆柱
+        translate([0, ys, zc_leg])
+            rotate([-90, 0, 0])
+                cylinder(h = w, r = r_round);
+    }
 }
 
-module top_plate() {
-    translate([-bracket_width/2, -D/2, -end_wall])
-        cube([bracket_width, D, end_wall]);
+// 顶板：Y 向跨度随两条侧壁厚度而变（非对称）。内侧间距固定居中于原点(Y=0)；
+// +Y 边到 gap/2+wr，−Y 边到 −(gap/2+wl)。侧壁为 0 时该边收到内侧间距处(±gap/2)。
+module top_plate(wr, wl) {
+    y_min = -(gap/2 + wl);
+    d     = gap + wr + wl;
+    translate([-bracket_width/2, y_min, -end_wall])
+        cube([bracket_width, d, end_wall]);
 }
 
 // ---- 内侧加强倒角 ----
@@ -182,10 +198,11 @@ module inner_chamfer_one() {
                          [end_wall,     gap/2 - c],
                          [end_wall + c, gap/2    ]]);
 }
-module inner_chamfers() {
+// 仅在对应侧壁存在(w>0)时才加该侧内倒角。
+module inner_chamfers(wr, wl) {
     if (inner_chamfer > 0) {
-        inner_chamfer_one();                    // 右内侧 (Y=+gap/2)
-        mirror([0, 1, 0]) inner_chamfer_one();  // 左内侧 (Y=-gap/2)
+        if (wr > 0) inner_chamfer_one();                    // +Y 内侧
+        if (wl > 0) mirror([0, 1, 0]) inner_chamfer_one();  // −Y 内侧
     }
 }
 
@@ -285,24 +302,26 @@ module end_tip_hole() {
     }
 }
 
-module bracket_solid() {
+// 单个支架实体：顶板 + 两条侧壁(各自厚度 wr/wl，0 则缺失) + 存在侧的内倒角。
+module bracket_solid(wr, wl) {
     union() {
-        top_plate();
-        leg(gap/2);                    // 右腿
-        leg(-gap/2 - side_wall);       // 左腿
-        inner_chamfers();              // U 型内侧两条边的加强倒角
+        top_plate(wr, wl);
+        leg(gap/2, wr);              // +Y 腿（右）
+        leg(-gap/2 - wl, wl);        // −Y 腿（左）
+        inner_chamfers(wr, wl);
     }
 }
 
 // ---- 钻孔 ----
-// 腿面孔：孔组在 X-Z 面，沿 Y 钻穿。ys = 腿面起始 Y。
-module leg_holes(ys) {
-    translate([0, ys - eps, zc_leg])
-        rotate([-90, 0, 0])
-            linear_extrude(height = side_wall + 2 * eps)
-                pattern_circles(side_bolt_circle_d, side_n_holes, side_hole_start_a,
-                                side_d_center, side_d_axis, side_d_diag,
-                                side_center_hole, side_diag_holes);
+// 腿面孔：孔组在 X-Z 面，沿 Y 钻穿。ys = 腿面起始 Y，w = 腿厚（0 则不钻）。
+module leg_holes(ys, w) {
+    if (w > 0)
+        translate([0, ys - eps, zc_leg])
+            rotate([-90, 0, 0])
+                linear_extrude(height = w + 2 * eps)
+                    pattern_circles(side_bolt_circle_d, side_n_holes, side_hole_start_a,
+                                    side_d_center, side_d_axis, side_d_diag,
+                                    side_center_hole, side_diag_holes);
 }
 
 // 顶板孔：孔组在 X-Y 面，沿 Z 钻穿。
@@ -331,37 +350,37 @@ module half_cut_yplus(k) {
             translate([-BIG/2, 0, -BIG/2])
                 cube(BIG);
 }
-// 顶板外平面(z=0)四条边切 45° 楔形（作用于整体，使腿侧折角也一并倒角）。
-// X/Y 两个轴向独立：end_chamfer_x 管 X=±bw/2 两端边，end_chamfer_y 管 Y=±D/2 两端边。
-module end_chamfers() {
+// 顶板外平面(z=0)四条边切 45° 楔形。X 向两端边由 end_chamfer_x 管；
+// Y 向两端边按各自侧壁外缘(±(gap/2+w))定位，故 +Y/−Y 可因侧壁厚度不同而非对称。
+module end_chamfers(wr, wl) {
     if (end_chamfer_x > 0) {
         kx = bracket_width/2 - end_chamfer_x;
         half_cut_xplus(kx);
         mirror([1, 0, 0]) half_cut_xplus(kx);
     }
     if (end_chamfer_y > 0) {
-        ky = D/2 - end_chamfer_y;
-        half_cut_yplus(ky);
-        mirror([0, 1, 0]) half_cut_yplus(ky);
+        half_cut_yplus((gap/2 + wr) - end_chamfer_y);                    // +Y 边
+        mirror([0, 1, 0]) half_cut_yplus((gap/2 + wl) - end_chamfer_y);  // −Y 边
     }
 }
 
 // ---- 单个 U 支架（封装为模块，便于复用/堆叠） ----
+// wr/wl：+Y / −Y 侧壁厚度（0=该侧壁不存在）。
 // include_bump：是否生成末端连接凸点(boss)及顶部小凸点/打孔。
 // 主凸点与正高度小凸点在内部 difference 之外再 union，避免被末端倒角(end_chamfers)斜切。
 // 外层 difference 仅用于 end_tip_bump_h < 0 时，从主凸点顶面中心向下打孔。
-module u_bracket(include_bump = true) {
+module u_bracket(wr, wl, include_bump = true) {
     difference() {
         union() {
             difference() {
-                bracket_solid();
+                bracket_solid(wr, wl);
                 if (holes_on_legs) {
-                    leg_holes(gap/2);
-                    leg_holes(-gap/2 - side_wall);
+                    leg_holes(gap/2, wr);
+                    leg_holes(-gap/2 - wl, wl);
                 }
                 if (holes_on_top)
                     top_holes();
-                end_chamfers();
+                end_chamfers(wr, wl);
             }
             if (include_bump) {
                 end_bump();        // 末端外表面中心凸点（不受倒角/钻孔影响）
@@ -381,7 +400,7 @@ parent_c_main   = min(max(end_bump_chamfer, 0), max(0, parent_inr_main - eps));
 bump_top_z      = (end_bump_on && end_bump_h > 0) ? end_bump_h + parent_c_main : 0;
 
 // ---- 组装：主体 U + 凸点末端的第二个 U（dogleg） ----
-u_bracket(include_bump = true);                 // 主 U（含连接凸点/对焦销）
+u_bracket(main_wall_right, main_wall_left, include_bump = true);   // 主 U（含连接凸点/对焦销）
 
 if (second_u_on)
     // 下沉 second_u_join 与主凸点搭接 → 保证两段实体连通；
@@ -390,7 +409,7 @@ if (second_u_on)
     translate([0, 0, bump_top_z - second_u_join])
         rotate([0, 0, second_u_rotate])
             rotate([180, 0, 0])
-                u_bracket(include_bump = second_u_bump);
+                u_bracket(second_wall_right, second_wall_left, include_bump = second_u_bump);
 
 // 显示用：四舍五入到小数点后 2 位
 function round2(x) = round(x * 100) / 100;
@@ -400,5 +419,7 @@ function round2(x) = round(x * 100) / 100;
 echo(str("两侧对角孔间距(应≈10mm) = ", round2(2 * (side_bolt_circle_d/2) * sin(45)), " mm"));
 echo(str("末端对角孔间距(应≈10mm) = ", round2(2 * (end_bolt_circle_d/2) * sin(45)), " mm"));
 echo(str("连接面(主凸点末端) Z = ", round2(bump_top_z), " mm"));
+echo(str("主U顶板Y跨度 = [", round2(-(gap/2 + main_wall_left)), ", ",
+         round2(gap/2 + main_wall_right), "] mm"));
 echo(str("总高(主腿底 → 第二U腿顶) ≈ ",
          round2(leg_length + (bump_top_z - second_u_join) + leg_length), " mm"));
