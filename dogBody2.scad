@@ -39,6 +39,8 @@ wall = 3;           // (mm)
 // 每个面单独设置：size=[长, 宽]；off=[沿“长”偏移, 沿“宽”偏移]（相对该面中心，mm）。
 // 某面 size 的长或宽 <= 0 则该面不开孔。
 hole_enable = true;
+
+/* [Hidden] */
 // 右侧壁 (+X 面)：长沿 Y、宽沿 Z；off=[ΔY, ΔZ]
 hole_xp_size = [4, 3];
 hole_xp_off  = [0, 0];
