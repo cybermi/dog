@@ -42,24 +42,24 @@ wall = 3;           // (mm)
 hole_enable = true;
 
 /* [Hidden] */
-// 右侧壁 (+X 面)：长沿 Y、宽沿 Z；off=[ΔY, ΔZ]
+// +X 面 (右侧壁)：长沿 Y、宽沿 Z；off=[ΔY, ΔZ]
 hole_xp_size = [4, 3];
 hole_xp_off  = [0, 0];
-// 左侧壁 (−X 面)：长沿 Y、宽沿 Z；off=[ΔY, ΔZ]
+// −X 面 (左侧壁)：长沿 Y、宽沿 Z；off=[ΔY, ΔZ]
 hole_xn_size = [4, 3];
 hole_xn_off  = [0, 0];
-// 底壁 (背离开口的 Y 面)：长沿 X、宽沿 Z；off=[ΔX, ΔZ]
-hole_yb_size = [4, 3];
-hole_yb_off  = [0, 0];
-// 背壁 (−Z 面)：长沿 X、宽沿 Y；off=[ΔX, ΔY]
-hole_zn_size = [4, 3];
-hole_zn_off  = [0, 0];
-// 顶壁 (+Z 面，正上方那面)：长沿 X、宽沿 Y；off=[ΔX, ΔY]
+// +Y 面：长沿 X、宽沿 Z；off=[ΔX, ΔZ]
+hole_yp_size = [4, 3];
+hole_yp_off  = [0, 0];
+// −Y 面：长沿 X、宽沿 Z；off=[ΔX, ΔZ]
+hole_yn_size = [4, 3];
+hole_yn_off  = [0, 0];
+// +Z 面 (顶壁)：长沿 X、宽沿 Y；off=[ΔX, ΔY]
 hole_zp_size = [4, 3];
 hole_zp_off  = [0, 0];
-// 凹口壁 (开口侧 Y 面)：长沿 X、宽沿 Z；off=[ΔX, ΔZ]
-hole_ym_size = [4, 3];
-hole_ym_off  = [0, 0];
+// −Z 面 (背壁)：长沿 X、宽沿 Y；off=[ΔX, ΔY]
+hole_zn_size = [4, 3];
+hole_zn_off  = [0, 0];
 
 // ---- 工字形主体 ----
 module i_beam_2d(thickness, top_len, web_len, bottom_len) {
@@ -128,7 +128,7 @@ module end_slots(top_len, web_len, bottom_len, thickness, notch_w, cd, concave_h
             cube(sz, center = true);
 }
 
-// 4 个末端凹形：在每个的 6 个面（±X 侧壁、内侧 Y 底壁、−Z 背壁、+Z 顶壁、外侧 Y 凹口壁）中心开矩形通孔。
+// 4 个末端凹盒：在每个的 6 个面（+X、−X、+Y、−Y、+Z、−Z）中心各开一个矩形通孔。
 //   每个面单独取 size=[长,宽] 与 off=[沿长偏移,沿宽偏移]（轴向映射见各 cube 注释）；
 //   通孔深度略大于壁厚，确保切穿；某面长或宽 <= 0 则跳过。
 module end_holes(top_len, web_len, bottom_len, thickness, notch_w, cd, concave_h, wall) {
@@ -139,40 +139,40 @@ module end_holes(top_len, web_len, bottom_len, thickness, notch_w, cd, concave_h
     eps = 0.1;
     t = wall + 2 * eps;                 // 通孔穿透深度（略大于壁厚）
 
-    // 单个末端的 4 面孔：bx/by0 = 该末端中心；dir = 开口的 Y 朝向(+1 朝 +Y，-1 朝 −Y)
-    module one_end(bx, by0, dir) {
-        // 右侧壁 (+X 面)：孔面在 Y-Z 平面 → 长沿 Y、宽沿 Z；穿透沿 X；off=[ΔY, ΔZ]
+    // 单个末端盒的 6 面孔：bx/by0 = 该末端盒中心(X, Y)；6 面均按绝对坐标轴朝向
+    module one_end(bx, by0) {
+        // +X 面 (右侧壁)：孔面在 Y-Z 平面 → 长沿 Y、宽沿 Z；穿透沿 X；off=[ΔY, ΔZ]
         if (hole_xp_size[0] > 0 && hole_xp_size[1] > 0)
             translate([bx + (notch_w + wall)/2, by0 + hole_xp_off[0], hole_xp_off[1]])
                 cube([t, hole_xp_size[0], hole_xp_size[1]], center = true);
-        // 左侧壁 (−X 面)：孔面在 Y-Z 平面 → 长沿 Y、宽沿 Z；穿透沿 X；off=[ΔY, ΔZ]
+        // −X 面 (左侧壁)：孔面在 Y-Z 平面 → 长沿 Y、宽沿 Z；穿透沿 X；off=[ΔY, ΔZ]
         if (hole_xn_size[0] > 0 && hole_xn_size[1] > 0)
             translate([bx - (notch_w + wall)/2, by0 + hole_xn_off[0], hole_xn_off[1]])
                 cube([t, hole_xn_size[0], hole_xn_size[1]], center = true);
-        // 底壁 (背离开口的 Y 面，即 −dir 侧)：孔面在 X-Z 平面 → 长沿 X、宽沿 Z；穿透沿 Y；off=[ΔX, ΔZ]
-        if (hole_yb_size[0] > 0 && hole_yb_size[1] > 0)
-            translate([bx + hole_yb_off[0], by0 - dir * (H - wall)/2, hole_yb_off[1]])
-                cube([hole_yb_size[0], t, hole_yb_size[1]], center = true);
-        // 凹口壁 (开口侧 Y 面，即 +dir 侧)：孔面在 X-Z 平面 → 长沿 X、宽沿 Z；穿透沿 Y；off=[ΔX, ΔZ]
-        if (hole_ym_size[0] > 0 && hole_ym_size[1] > 0)
-            translate([bx + hole_ym_off[0], by0 + dir * (H - wall)/2, hole_ym_off[1]])
-                cube([hole_ym_size[0], t, hole_ym_size[1]], center = true);
-        // 背壁 (−Z 面)：孔面在 X-Y 平面 → 长沿 X、宽沿 Y；穿透沿 Z；off=[ΔX, ΔY]
-        if (hole_zn_size[0] > 0 && hole_zn_size[1] > 0)
-            translate([bx + hole_zn_off[0], by0 + hole_zn_off[1], -cd/2 + wall/2])
-                cube([hole_zn_size[0], hole_zn_size[1], t], center = true);
-        // 顶壁 (+Z 面)：孔面在 X-Y 平面 → 长沿 X、宽沿 Y；穿透沿 Z；off=[ΔX, ΔY]
+        // +Y 面：孔面在 X-Z 平面 → 长沿 X、宽沿 Z；穿透沿 Y；off=[ΔX, ΔZ]
+        if (hole_yp_size[0] > 0 && hole_yp_size[1] > 0)
+            translate([bx + hole_yp_off[0], by0 + (H - wall)/2, hole_yp_off[1]])
+                cube([hole_yp_size[0], t, hole_yp_size[1]], center = true);
+        // −Y 面：孔面在 X-Z 平面 → 长沿 X、宽沿 Z；穿透沿 Y；off=[ΔX, ΔZ]
+        if (hole_yn_size[0] > 0 && hole_yn_size[1] > 0)
+            translate([bx + hole_yn_off[0], by0 - (H - wall)/2, hole_yn_off[1]])
+                cube([hole_yn_size[0], t, hole_yn_size[1]], center = true);
+        // +Z 面 (顶壁)：孔面在 X-Y 平面 → 长沿 X、宽沿 Y；穿透沿 Z；off=[ΔX, ΔY]
         if (hole_zp_size[0] > 0 && hole_zp_size[1] > 0)
             translate([bx + hole_zp_off[0], by0 + hole_zp_off[1], cd/2 - wall/2])
                 cube([hole_zp_size[0], hole_zp_size[1], t], center = true);
+        // −Z 面 (背壁)：孔面在 X-Y 平面 → 长沿 X、宽沿 Y；穿透沿 Z；off=[ΔX, ΔY]
+        if (hole_zn_size[0] > 0 && hole_zn_size[1] > 0)
+            translate([bx + hole_zn_off[0], by0 + hole_zn_off[1], -cd/2 + wall/2])
+                cube([hole_zn_size[0], hole_zn_size[1], t], center = true);
     }
 
-    // 上端两个：开口朝 +Y
+    // 上端两个末端盒
     for (s = [-1, 1])
-        one_end(s * (top_len/2 + overall_w/2), ty + concave_h/2, +1);
-    // 下端两个：开口朝 −Y
+        one_end(s * (top_len/2 + overall_w/2), ty + concave_h/2);
+    // 下端两个末端盒
     for (s = [-1, 1])
-        one_end(s * (bottom_len/2 + overall_w/2), by - concave_h/2, -1);
+        one_end(s * (bottom_len/2 + overall_w/2), by - concave_h/2);
 }
 
 // ---- 渲染 ----
