@@ -24,11 +24,12 @@ beam_z = 0;         // (mm)
 // 工字竖段(中竖段)中心沿 Z 轴的圆通孔直径（≤0 不开孔；需 < thickness 才完全落在竖段内）
 web_hole_d = 3;     // (mm)
 
-/* [末端凹形] —— U 形槽，由 4 个参数控制 */
+/* [末端凹形] —— 中空矩形盒，由 4 个参数控制 */
 // 凹口宽度（X 方向，两壁之间的开口宽度）
 notch_w = 6;        // (mm)
-// 深度（Z 方向，凹形拉伸厚度；设为 0 则自动跟随工字形 depth，与主体同厚、两面齐平）
-concave_d = 0;      // (mm)
+// 深度（Z 方向，凹盒拉伸厚度）；中空盒需 > 2*wall 才有 Z 向空腔；设为 0 则自动跟随工字形 depth
+// 当前 12 > 梁 depth(6)：凹盒在 Z 两面各凸出 (12-6)/2 = 3mm（要与梁齐平需同时增大 depth 或减小 wall）
+concave_d = 12;     // (mm)
 // 高度（Y 方向，凹形伸出横段表面的净高度）
 concave_h = 10;     // (mm)
 // 壁厚（两侧壁 + ±Z 两面壁(−Z 底壁/+Z 顶壁)的厚度；外廓宽 = 凹口宽 + 2×壁厚；需 深度 > 2×壁厚 才有槽腔）
@@ -82,11 +83,11 @@ module i_beam(thickness, top_len, web_len, bottom_len, depth = 0) {
         i_beam_2d(thickness, top_len, web_len, bottom_len);
 }
 
-// ---- 末端凹形 (U 形槽) ----
-// 思路：先把"实心外块"与工字并集，再统一挖"凹槽"。这样凹槽会同时穿过外块和
-//      搭接处的横段材料——无论 thickness 多大，槽内都干净，不会被横段穿透。
+// ---- 末端凹形 (中空矩形盒) ----
+// 思路：先把"实心外块"与工字并集，再统一挖"内腔"。这样内腔会同时穿过外块和
+//      搭接处的横段材料——无论 thickness 多大，腔内都干净，不会被横段穿透。
 // 几何约定：外廓宽 = notch_w + 2*wall；Y 向总高 = concave_h(净伸出) + thickness(搭接)；
-//          内侧与横段内沿齐平，底部保留 wall 壁厚作底。
+//          六面各保留 wall 壁厚，形成封闭空心盒（需 Z 向 cd > 2*wall 才有腔）。
 
 // 横段长度 = 两个凹形相对(内)侧之间的距离：凹形内侧边钉在 ±len/2，只向外伸出。
 //   len=0 → 两凹形内侧紧贴、不重叠；len>0 → 内侧间距 = len。块中心 = 内侧 + overall_w/2。
@@ -175,8 +176,12 @@ module end_holes(top_len, web_len, bottom_len, thickness, notch_w, cd, concave_h
 }
 
 // ---- 渲染 ----
-// 凹形深度：0 表示跟随工字形 depth（与主体同厚、两面齐平）
+// 凹盒深度：0 表示跟随工字形 depth
 concave_d_eff = (concave_d > 0) ? concave_d : depth;
+// 中空盒护栏：三个方向的腔体尺寸都必须 > 0，否则该方向被壁厚塞满、凹盒变实心
+assert(concave_d_eff         - 2 * wall > 0, "凹盒 Z 向无空腔：需 concave_d(或 depth) > 2*wall");
+assert(concave_h + thickness - 2 * wall > 0, "凹盒 Y 向无空腔：需 concave_h + thickness > 2*wall");
+assert(notch_w > 0, "凹盒 X 向无空腔：需 notch_w > 0");
 difference() {
     union() {
         translate([0, 0, beam_z])
